@@ -835,57 +835,53 @@ function clause execute LoadCapImm(cd, cs1, imm) = {
   } else if not(is_aligned_addr(vaddrBits, cap_size)) then {
     handle_mem_exception(vaddrBits, E_Load_Addr_Align());
     RETIRE_FAIL
-  } else match translateAddr(vaddrBits, Read(Cap)) {
-    TR_Failure(E_Extension(_), _) => { internal_error(__FILE__, __LINE__,"unexpected cheri exception for cap load") },
-    TR_Failure(e, _) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
-    TR_Address(addr, ptw_info) => {
-      let c = mem_read_cap(addr, false, false, false);
-      match c {
-        MemValue(v) => {
-          var cr = v;
-          if ptw_info.ptw_lc == PTW_LC_CLEAR  | not(auth_val.permit_load_store_cap) then {
-            cr.tag = false;
-          };
-          if cr.tag & not(auth_val.permit_load_global) then {
-            /* Without load-global authority, the loaded cap is always local */
-            cr.global = false;
-            if not(isCapSealed(cr)) then {
-              /*
-               * Loading an unsealed capability without load global authority
-               * results in attenuation of the loaded capability's permission,
-               * transitively weakening the view through said authority.
-               *
-               * But sealing stops this transitivity.  Even if the authority
-               * lacks load global permission, a loaded sealed cap retains its
-               * load global permission, as it requires separate unsealing
-               * authority to exercise.
-               */
-              cr.permit_load_global = false;
-            }
-          };
-          if cr.tag & not(auth_val.permit_load_mutable) & not(isCapSealed(cr)) then {
+  } else {
+    let c = mem_read_cap(vaddrBits, false, false, false);
+    match c {
+      MemValue(v) => {
+        var cr = v;
+        if not(auth_val.permit_load_store_cap) then {
+          cr.tag = false;
+        };
+        if cr.tag & not(auth_val.permit_load_global) then {
+          /* Without load-global authority, the loaded cap is always local */
+          cr.global = false;
+          if not(isCapSealed(cr)) then {
             /*
-             * Loading an unsealed capability without load mutable authority
-             * also results in attenuated permissions.  As above, sealing stops
-             * transitivity, but also the loaded sealed capability retains its
-             * store permission.
-             */
-            cr.permit_store = false;
-            cr.permit_load_mutable = false;
-          };
-          /* Sealing capabilities are excluded from revocation */
-          let isSealingCap = cr.permit_seal | cr.permit_unseal | cr.perm_user0;
-          if (cr.tag & not(isSealingCap)) then {
-            let base = getCapBaseBits(cr);
-            let granule_addr = align_down(log2_revocation_granule_size, base);
-            let revoked = mem_read_cap_revoked(granule_addr);
-            cr.tag = cr.tag & not(revoked);
-          };
-          C(cd) = cr;
-          RETIRE_SUCCESS
-        },
-        MemException(e) => {handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
-      }
+              * Loading an unsealed capability without load global authority
+              * results in attenuation of the loaded capability's permission,
+              * transitively weakening the view through said authority.
+              *
+              * But sealing stops this transitivity.  Even if the authority
+              * lacks load global permission, a loaded sealed cap retains its
+              * load global permission, as it requires separate unsealing
+              * authority to exercise.
+              */
+            cr.permit_load_global = false;
+          }
+        };
+        if cr.tag & not(auth_val.permit_load_mutable) & not(isCapSealed(cr)) then {
+          /*
+            * Loading an unsealed capability without load mutable authority
+            * also results in attenuated permissions.  As above, sealing stops
+            * transitivity, but also the loaded sealed capability retains its
+            * store permission.
+            */
+          cr.permit_store = false;
+          cr.permit_load_mutable = false;
+        };
+        /* Sealing capabilities are excluded from revocation */
+        let isSealingCap = cr.permit_seal | cr.permit_unseal | cr.perm_user0;
+        if (cr.tag & not(isSealingCap)) then {
+          let base = getCapBaseBits(cr);
+          let granule_addr = align_down(log2_revocation_granule_size, base);
+          let revoked = mem_read_cap_revoked(granule_addr);
+          cr.tag = cr.tag & not(revoked);
+        };
+        C(cd) = cr;
+        RETIRE_SUCCESS
+      },
+      MemException(_, e) => {handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
     }
   }
 }
