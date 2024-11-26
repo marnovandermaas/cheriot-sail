@@ -932,21 +932,18 @@ function clause execute StoreCapImm(cs2, cs1, imm) = {
   } else if not(is_aligned_addr(vaddrBits, cap_size)) then {
     handle_mem_exception(vaddrBits, E_SAMO_Addr_Align());
     RETIRE_FAIL
-  } else match translateAddr(vaddrBits, Write(if cs2_val.tag then Cap else Data)) {
-    TR_Failure(e, _) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
-    TR_Address(addr, _) => {
-      let eares : MemoryOpResult(unit) = mem_write_ea_cap(addr, false, false, false);
-      match (eares) {
-        MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
-        MemValue(_) => {
-          let stored_val =
-              clearTagIf(cs2_val, not (auth_val.permit_store_local_cap) & not (cs2_val.global));
-          let res : MemoryOpResult(bool) = mem_write_cap(addr, stored_val, false, false, false);
-          match (res) {
-            MemValue(true)  => RETIRE_SUCCESS,
-            MemValue(false) => internal_error(__FILE__, __LINE__,"store got false from mem_write_value"),
-            MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
-          }
+  } else {
+    let eares : MemoryOpResult(unit) = mem_write_ea_cap(addr, false, false, false);
+    match (eares) {
+      MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
+      MemValue(_) => {
+        let stored_val =
+            clearTagIf(cs2_val, not (auth_val.permit_store_local_cap) & not (cs2_val.global));
+        let res : MemoryOpResult(bool) = mem_write_cap(addr, stored_val, false, false, false);
+        match (res) {
+          MemValue(true)  => RETIRE_SUCCESS,
+          MemValue(false) => internal_error(__FILE__, __LINE__,"store got false from mem_write_value"),
+          MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
         }
       }
     }
