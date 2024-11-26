@@ -935,7 +935,7 @@ function clause execute StoreCapImm(cs2, cs1, imm) = {
   } else {
     let eares : MemoryOpResult(unit) = mem_write_ea_cap(vaddrBits, false, false, false);
     match (eares) {
-      MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
+      MemException(_, e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL },
       MemValue(_) => {
         let stored_val =
             clearTagIf(cs2_val, not (auth_val.permit_store_local_cap) & not (cs2_val.global));
@@ -943,7 +943,7 @@ function clause execute StoreCapImm(cs2, cs1, imm) = {
         match (res) {
           MemValue(true)  => RETIRE_SUCCESS,
           MemValue(false) => internal_error(__FILE__, __LINE__,"store got false from mem_write_value"),
-          MemException(e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
+          MemException(_, e) => { handle_mem_exception(vaddrBits, e); RETIRE_FAIL }
         }
       }
     }
